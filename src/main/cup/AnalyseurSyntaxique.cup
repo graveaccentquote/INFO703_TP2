@@ -3,6 +3,10 @@ package fr.usmb.m1isc.compilation.tp;
 import java_cup.runtime.Symbol;
 import java.util.HashMap;
 
+import fr.usmb.m1isc.compilation.tp.Tree;
+import fr.usmb.m1isc.compilation.tp.Tree.NodeType;
+import fr.usmb.m1isc.compilation.tp.Tree.Operator;
+
 /* inclusion du code */
 
 action code {: 
@@ -35,11 +39,18 @@ parser code {:
 :};
 
 /* symboles terminaux */
-terminal PLUS, MOINS, MOINS_UNAIRE, MUL, DIV, MOD, NOT, OR, AND, PAR_G, PAR_D, SEMI, POINT, LET, INPUT, OUTPUT, IF, THEN, ELSE, WHILE, DO, EGAL, GT, GTE, NIL, ERROR; 
+terminal PLUS, MOINS, MUL, DIV, MOD; //binary operators
+terminal OR, AND, GT, GTE, EGAL; //logical binary operators
+terminal NOT, MOINS_UNAIRE; //unary operators
+terminal PAR_G, PAR_D, SEMI, POINT; //sugar
+terminal LET, INPUT, OUTPUT, IF, THEN, ELSE, WHILE, DO;
+terminal NIL, ERROR; 
 terminal Integer ENTIER;
 terminal String IDENT;
+
+
 /* non terminaux */
-non terminal program, sequence, expression, expr;
+non terminal program, sequence, expression, term;
 
 precedence nonassoc OUTPUT;
 precedence right OR;
@@ -51,44 +62,44 @@ precedence left PLUS, MOINS;
 precedence left MUL, DIV, MOD;
 precedence left MOINS_UNAIRE;
 
-/* grammaire */
-// un pg est une sequence d'insctions terminee par point
+/* grammar */
+// a program is a sequence that ends with a POINT
 program ::= 
-	sequence:s POINT  
-	;
+	sequence:s POINT  {: RESULT = s ; System.out.println("sequence read ... OK") ; :}
+	; //might be preferable to .add() children to root end created on program
 
-// une sequence est une suite d'instructions separes par des point virgules	
-sequence ::= expression:e1 SEMI sequence:e2
-	 	   | expression:e   
+// a sequence is a series of 0, 1 or more expressions
+sequence ::= expression:e1 SEMI sequence:e2 {: RESULT = new Tree(NodeType.ROOT, (Tree) e1, (Tree) e2); :}
+	 	   | expression:e {: RESULT = new Tree(NodeType.ROOT, (Tree) e); :}
 	 	   |
 	 	   ;
 
-// une expession est soit une affectation ,une 			 
-expression ::= expr:e 
-             | LET IDENT:nom EGAL expr:e  				
-             | WHILE expr:cond DO expression:e 
-             | IF expr:cond THEN expression:a1 ELSE expression:a2 
-             | error // reprise d'erreurs
+// an expression is either a term, an affectation, a loop or an IF THEN ELSE statement			 
+expression ::= term:e  {: RESULT = e ; :}
+             | LET IDENT:nom EGAL term:e {: RESULT = new Tree(NodeType.OPERATOR, Operator.LET, new Tree(NodeType.VARIABLE_NAME, nom), (Tree) e); :}   				
+             | WHILE term:cond DO expression:e {: RESULT = new Tree(NodeType.OPERATOR, Operator.WHILE, (Tree) cond, (Tree) e); :} 
+             | IF term:cond THEN expression:a1 ELSE expression:a2 {: RESULT = new Tree(NodeType.OPERATOR, Operator.IF, (Tree) cond, (Tree) a1, (Tree) a2); :}
+             | error {: System.out.println("Error detected"); :} 
 			 ;
 
 // 
-expr ::= NOT:op expr:e
-	   | expr:e1 AND expr:e2
-	   | expr:e1 OR expr:e2
-	   | expr:e1 EGAL expr:e2
-	   | expr:e1 GT expr:e2
-	   | expr:e1 GTE expr:e2
-	   | expr:e1 PLUS expr:e2
-	   | expr:e1 MOINS expr:e2
-	   | expr:e1 MUL expr:e2
-	   | expr:e1 DIV expr:e2
-	   | expr:e1 MOD expr:e2
-	   | MOINS expr:e			 %prec MOINS_UNAIRE 
-	   | OUTPUT expr:e
-	   | INPUT
-	   | NIL
-	   | ENTIER:n
-	   | IDENT:id
-	   | PAR_G sequence:e PAR_D
+term ::= NOT:op term:e  {: RESULT = new Tree(NodeType.OPERATOR, Operator.NOT, (Tree) e); :}
+	   | term:e1 AND term:e2 {: RESULT = new Tree(NodeType.OPERATOR, Operator.AND, (Tree) e1, (Tree) e2); :}
+	   | term:e1 OR term:e2 {: RESULT = new Tree(NodeType.OPERATOR, Operator.OR, (Tree) e1, (Tree) e2); :}
+	   | term:e1 EGAL term:e2 {: RESULT = new Tree(NodeType.OPERATOR, Operator.EQ, (Tree) e1, (Tree) e2); :}
+	   | term:e1 GT term:e2 {: RESULT = new Tree(NodeType.OPERATOR, Operator.GT, (Tree) e1, (Tree) e2); :}
+	   | term:e1 GTE term:e2 {: RESULT = new Tree(NodeType.OPERATOR, Operator.GTE, (Tree) e1, (Tree) e2); :}
+	   | term:e1 PLUS term:e2 {: RESULT = new Tree(NodeType.OPERATOR, Operator.ADD, (Tree) e1, (Tree) e2); :}
+	   | term:e1 MOINS term:e2 {: RESULT = new Tree(NodeType.OPERATOR, Operator.SUB, (Tree) e1, (Tree) e2); :}
+	   | term:e1 MUL term:e2 {: RESULT = new Tree(NodeType.OPERATOR, Operator.MULT, (Tree) e1, (Tree) e2); :}
+	   | term:e1 DIV term:e2 {: RESULT = new Tree(NodeType.OPERATOR, Operator.DIV, (Tree) e1, (Tree) e2); :}
+	   | term:e1 MOD term:e2 {: RESULT = new Tree(NodeType.OPERATOR, Operator.MOD, (Tree) e1, (Tree) e2); :}
+	   | MOINS term:e {: RESULT = new Tree(NodeType.OPERATOR, Operator.UNARY_MINUS, (Tree) e); :} %prec MOINS_UNAIRE 
+	   | OUTPUT term:e {: RESULT = new Tree(NodeType.OUTPUT, (Tree) e); :}
+	   | INPUT {: RESULT = new Tree(NodeType.INPUT); :}
+	   | NIL {: RESULT = new Tree(NodeType.BOOLEAN, (Boolean) false); :}
+	   | ENTIER:n {: RESULT = new Tree(NodeType.INTEGER, (Integer) n); :}
+	   | IDENT:id {: RESULT = new Tree(NodeType.VARIABLE_NAME, (String) id);:} //variable name
+	   | PAR_G sequence:e PAR_D {: RESULT = e ; :}
 	   ;
 
