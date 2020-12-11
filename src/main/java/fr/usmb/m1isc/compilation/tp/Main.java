@@ -17,8 +17,8 @@ public class Main {
         if (args.length > 0)
             lexer = new LexicalAnalyzer(new FileReader(args[0]));
         else {
-        	Reader in0 = new StringReader("let prixTtc =  prixHt * 119 / 100;\r\n"
-        			+ "prixTtc + 100.");
+        	Reader in0 = new StringReader("let prixHt = 200;\r\n"
+        			+ "let prixTtc =  prixHt * 119 / 100 .");
 
         	lexer = new LexicalAnalyzer(in0);
             //lexer = new LexicalAnalyzer(new InputStreamReader(System.in));
@@ -27,7 +27,9 @@ public class Main {
         parser p = new parser(lexer);
         Symbol res = p.parse();
         Tree a = (Tree)res.value;
-        a.toString();
+        System.out.println(a.toString());
+        System.out.println(a.generateData());
+        System.out.println(a.generateCode());
 	}
 
 }

@@ -52,6 +52,7 @@ terminal String IDENT;
 /* non terminaux */
 non terminal program, sequence, expression, term;
 
+precedence nonassoc LET;
 precedence nonassoc OUTPUT;
 precedence right OR;
 precedence right AND;
@@ -70,7 +71,7 @@ program ::=
 
 // a sequence is a series of 0, 1 or more expressions
 sequence ::= expression:e1 SEMI sequence:e2 {: RESULT = new Tree(NodeType.ROOT, (Tree) e1, (Tree) e2); :}
-	 	   | expression:e {: RESULT = new Tree(NodeType.ROOT, (Tree) e); :}
+	 	   | expression:e {: RESULT = e ; :}
 	 	   |
 	 	   ;
 
@@ -97,9 +98,9 @@ term ::= NOT:op term:e  {: RESULT = new Tree(NodeType.OPERATOR, Operator.NOT, (T
 	   | MOINS term:e {: RESULT = new Tree(NodeType.OPERATOR, Operator.UNARY_MINUS, (Tree) e); :} %prec MOINS_UNAIRE 
 	   | OUTPUT term:e {: RESULT = new Tree(NodeType.OUTPUT, (Tree) e); :}
 	   | INPUT {: RESULT = new Tree(NodeType.INPUT); :}
-	   | NIL {: RESULT = new Tree(NodeType.BOOLEAN, (Boolean) false); :}
-	   | ENTIER:n {: RESULT = new Tree(NodeType.INTEGER, (Integer) n); :}
-	   | IDENT:id {: RESULT = new Tree(NodeType.VARIABLE_NAME, (String) id);:} //variable name
+	   | NIL {: RESULT = new Tree(NodeType.BOOLEAN, false); :}
+	   | ENTIER:n {: RESULT = new Tree(NodeType.INTEGER, n); :}
+	   | IDENT:id {: RESULT = new Tree(NodeType.VARIABLE_NAME, id);:} //variable name
 	   | PAR_G sequence:e PAR_D {: RESULT = e ; :}
 	   ;
 

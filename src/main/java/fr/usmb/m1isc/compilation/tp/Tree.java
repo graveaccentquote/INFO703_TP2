@@ -2,6 +2,8 @@ package fr.usmb.m1isc.compilation.tp;
 
 import java.util.ArrayList;
 
+import fr.usmb.m1isc.compilation.tp.Tree.Operator;
+
 public class Tree {
 
 	/// The type of node for the abstract tree
@@ -14,9 +16,7 @@ public class Tree {
 		LT, LTE, GT, GTE, EQ, DIFF, AND, OR, //binary logic operators
 		LET, WHILE, //binary nodes
 		IF //tertiary nodes
-		}
-	
-	
+		}	
 	
 	//	attributes
 	private NodeType type;
@@ -135,6 +135,8 @@ public class Tree {
 		this.children.set(1, son);
 	}
 	
+	
+	///Methods	
 	private String unaryOperatorTostring() {
 		StringBuilder acc = new StringBuilder("");
 		
@@ -235,11 +237,13 @@ public class Tree {
 			acc.append(this.children.get(0).toString());
 			acc.append(" = ");
 			acc.append(this.children.get(1).toString());
+			break;
 		case WHILE:
-			acc.append("WHILE( ");
+			acc.append("WHILE ");
 			acc.append(this.children.get(0).toString());
-			acc.append(") ");
+			acc.append(" DO ");
 			acc.append(this.children.get(1).toString());
+			break;
 		default:
 			return "error, incorrect operator";
 		}
@@ -254,13 +258,12 @@ public class Tree {
 		switch((Operator) this.value)
 		{
 		case IF:
-			acc.append("IF( ");
+			acc.append("IF ");
 			acc.append(this.children.get(0).toString());
-			acc.append(" ) THEN ( ");
+			acc.append(" THEN ");
 			acc.append(this.children.get(1).toString());
-			acc.append(" ) ELSE ( ");
+			acc.append(" ELSE ");
 			acc.append(this.children.get(2).toString());
-			acc.append(" )");
 			break;
 			
 		default:
@@ -315,11 +318,9 @@ public class Tree {
 			break;
 			
 		case ROOT:
-			for (int i = 0; i < this.children.size(); ++i)
-			{
-				acc.append(this.children.get(i));
-				acc.append(";");
-			}
+			acc.append(this.children.get(0));
+			acc.append("; ");
+			acc.append(this.children.get(1));
 			break;
 			
 		default:
@@ -328,4 +329,248 @@ public class Tree {
 		}
 		return acc.toString();
 	}
+	
+	
+	public StringBuffer generateData()
+	{
+		StringBuffer dataBuffer = new StringBuffer();
+		dataBuffer.append("DATA SEGMENTS");
+		dataBuffer.append(System.getProperty("line.separator"));
+		dataBuffer = genData(dataBuffer);
+		dataBuffer.append("DATA ENDS");
+		dataBuffer.append(System.getProperty("line.separator"));
+			 
+		return dataBuffer; 
+	}
+	
+	public StringBuffer generateCode()
+	{
+		StringBuffer codeBuffer = new StringBuffer();
+		codeBuffer.append("CODE SEGMENTS");
+		codeBuffer.append(System.getProperty("line.separator"));
+		codeBuffer = genCode(codeBuffer, 0);
+		codeBuffer.append("CODE ENDS");
+		codeBuffer.append(System.getProperty("line.separator"));
+			 
+		return codeBuffer; 
+	}
+	
+	private String getRegisterName(int registerCounter)
+	{
+		switch(registerCounter)
+		{
+		case 0:
+			return "eax";
+		case 1:
+			return "ebx";
+		case 2:
+			return "ecx";
+		case 3:
+			return "edx";
+		default:
+			//TODO
+			return "registry error";			
+		}
+	}
+	
+	private StringBuffer genData(StringBuffer dataBuffer) {
+		switch(this.type)
+		{
+		case OPERATOR:
+			switch((Operator) this.value)
+			{
+			case LET:
+				dataBuffer.append("\t");
+				dataBuffer.append(this.getFirstSon().getValue());
+				dataBuffer.append(" DD");
+				dataBuffer.append(System.getProperty("line.separator"));
+				break;
+			default:
+				break;
+			}
+		
+		default:
+			for (Tree var : this.children)
+			{
+				dataBuffer = var.genData(dataBuffer);				
+			}
+			break;
+			
+		}
+		return dataBuffer;	
+	}
+	
+	private StringBuffer genCode(StringBuffer codeBuffer, int registerCounter) {
+		switch(this.type)
+		{
+		case OPERATOR:
+			codeBuffer = generateOperatorCode(codeBuffer, registerCounter);
+			break;
+			
+		case INTEGER:
+			codeBuffer = generateIntegerCode(codeBuffer, registerCounter);
+			break;
+			
+		case VARIABLE_NAME:
+			codeBuffer = generateVariableCode(codeBuffer, registerCounter);
+			break;
+
+		case INPUT:
+			codeBuffer = generateInputCode(codeBuffer, registerCounter);
+			break;
+			
+		case OUTPUT:
+			codeBuffer = generateOutputCode(codeBuffer, registerCounter);
+			break;
+			
+		case ROOT:
+			codeBuffer = generateRootCode(codeBuffer, registerCounter);
+			break;
+		
+		default:
+			codeBuffer.append("type error");
+			break;
+			
+		}
+		return codeBuffer;	
+	}
+	
+	private StringBuffer generateOperatorCode(StringBuffer codeBuffer, int registerCounter) {
+		String adr1;
+		String adr2;
+		switch((Operator) this.value)
+		{
+		case LET:
+			//evaluate expr
+			codeBuffer = children.get(1).genCode(codeBuffer, registerCounter);
+			
+			//stock address
+			adr1 = getRegisterName(registerCounter);
+			
+			//depop and stock
+			codeBuffer.append("\tpop " + adr1 );
+			codeBuffer.append(System.getProperty("line.separator"));
+			codeBuffer.append("\tmov " + (String) children.get(0).getValue() + " " + adr1);
+			codeBuffer.append(System.getProperty("line.separator"));
+//			codeBuffer.append("\tpush " + adr1);
+//			codeBuffer.append(System.getProperty("line.separator"));
+			break;
+		case ADD:
+			//evaluate expr1 and expr2
+			codeBuffer = children.get(0).genCode(codeBuffer, registerCounter);
+			codeBuffer = children.get(1).genCode(codeBuffer, registerCounter+1);
+			
+			//stock addresses
+			adr1 = getRegisterName(registerCounter);
+			adr2 = getRegisterName(registerCounter+1);
+			
+			//depop, add, push
+			codeBuffer.append("\tpop " + adr2 );
+			codeBuffer.append(System.getProperty("line.separator"));
+			codeBuffer.append("\tpop " + adr1 );
+			codeBuffer.append(System.getProperty("line.separator"));
+			codeBuffer.append("\tadd " + adr1 + ", " + adr2);
+			codeBuffer.append(System.getProperty("line.separator"));
+			codeBuffer.append("\tpush " + adr1 );
+			codeBuffer.append(System.getProperty("line.separator"));
+			break;
+		case SUB:
+			//evaluate expr1 and expr2
+			codeBuffer = children.get(0).genCode(codeBuffer, registerCounter);
+			codeBuffer = children.get(1).genCode(codeBuffer, registerCounter+1);
+			
+			//stock addresses
+			adr1 = getRegisterName(registerCounter);
+			adr2 = getRegisterName(registerCounter+1);
+			
+			//depop, sub, push
+			codeBuffer.append("\tpop " + adr2 );
+			codeBuffer.append(System.getProperty("line.separator"));
+			codeBuffer.append("\tpop " + adr1 );
+			codeBuffer.append(System.getProperty("line.separator"));
+			codeBuffer.append("\tsub " + adr1 + ", " + adr2);
+			codeBuffer.append(System.getProperty("line.separator"));
+			codeBuffer.append("\tpush " + adr1 );
+			codeBuffer.append(System.getProperty("line.separator"));
+			break;
+		case MULT:
+			//evaluate expr1 and expr2
+			codeBuffer = children.get(0).genCode(codeBuffer, registerCounter);
+			codeBuffer = children.get(1).genCode(codeBuffer, registerCounter+1);
+			
+			//stock addresses
+			adr1 = getRegisterName(registerCounter);
+			adr2 = getRegisterName(registerCounter+1);
+			
+			//depop, mult, push
+			codeBuffer.append("\tpop " + adr2 );
+			codeBuffer.append(System.getProperty("line.separator"));
+			codeBuffer.append("\tpop " + adr1 );
+			codeBuffer.append(System.getProperty("line.separator"));
+			codeBuffer.append("\tmul " + adr1 + ", " + adr2);
+			codeBuffer.append(System.getProperty("line.separator"));
+			codeBuffer.append("\tpush " + adr1 );
+			codeBuffer.append(System.getProperty("line.separator"));
+			break;
+		case DIV:
+			//evaluate expr1 and expr2
+			codeBuffer = children.get(0).genCode(codeBuffer, registerCounter);
+			codeBuffer = children.get(1).genCode(codeBuffer, registerCounter+1);
+			
+			//stock addresses
+			adr1 = getRegisterName(registerCounter);
+			adr2 = getRegisterName(registerCounter+1);
+			
+			//depop, div, push
+			codeBuffer.append("\tpop " + adr2 );
+			codeBuffer.append(System.getProperty("line.separator"));
+			codeBuffer.append("\tpop " + adr1 );
+			codeBuffer.append(System.getProperty("line.separator"));
+			codeBuffer.append("\tdiv " + adr1 + ", " + adr2);
+			codeBuffer.append(System.getProperty("line.separator"));
+			codeBuffer.append("\tpush " + adr1 );
+			codeBuffer.append(System.getProperty("line.separator"));
+			break;
+		/*case MOD:
+			//TODO
+			break;*/
+		default:
+			break;
+		}
+		return codeBuffer;
+	}
+	
+	private StringBuffer generateIntegerCode(StringBuffer codeBuffer, int registerCounter)
+	{
+		String adr = this.getRegisterName(registerCounter);
+		codeBuffer.append("\tmov " + adr + ", " + (int) this.value);
+		codeBuffer.append(System.getProperty("line.separator"));
+		codeBuffer.append("\tpush " + adr);
+		codeBuffer.append(System.getProperty("line.separator"));
+		return codeBuffer;
+	}
+	
+	private StringBuffer generateVariableCode(StringBuffer codeBuffer, int registerCount)
+	{
+		return codeBuffer;
+	}
+	
+	private StringBuffer generateInputCode(StringBuffer codeBuffer, int registerCounter)
+	{
+		return codeBuffer;
+	}
+	
+	private StringBuffer generateOutputCode(StringBuffer codeBuffer, int registerCounter)
+	{
+		return codeBuffer;
+	}
+	
+	private StringBuffer generateRootCode(StringBuffer codeBuffer, int registerCounter) 
+	{
+		codeBuffer = children.get(0).genCode(codeBuffer, registerCounter);
+		codeBuffer = children.get(1).genCode(codeBuffer, registerCounter);
+
+		return codeBuffer;
+	}
+
 }
